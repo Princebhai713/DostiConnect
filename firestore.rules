@@ -139,7 +139,7 @@ service cloud.firestore {
      */
     match /chats/{chatId} {
         allow get, write: if isSignedIn() && request.auth.uid in resource.data.participantIds;
-        allow list: if false; // Disallow listing all chat rooms
+        allow list: if isRegisteredUser();
     }
 
     /**
