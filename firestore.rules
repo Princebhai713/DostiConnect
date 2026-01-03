@@ -111,14 +111,15 @@ service cloud.firestore {
     /**
      * @description Manages friend requests between users.
      * @path /users/{userId}/friendRequests/{friendRequestId}
-     * @allow (create) A user (sender) creates a request under the receiver's user path.
+     * @allow (create) A user (sender) creates a request under their own or the receiver's user path.
      * @deny (update) The sender tries to change the status of a request they sent.
      * @principle Enforces that only the sender can create and only the receiver can accept/decline.
      */
     match /users/{userId}/friendRequests/{friendRequestId} {
       allow get: if isSignedIn() && (isOwner(resource.data.senderId) || isOwner(resource.data.receiverId));
       allow list: if isOwner(userId);
-      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid && request.resource.data.receiverId == userId;
+      // Allow creation if the signed-in user is the sender AND the path corresponds to either the sender or receiver
+      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid && (userId == request.resource.data.senderId || userId == request.resource.data.receiverId);
       allow update: if docExists() && isOwner(userId) && isOwner(resource.data.receiverId);
       allow delete: if docExists() && (isOwner(resource.data.senderId) || isOwner(resource.data.receiverId));
     }
