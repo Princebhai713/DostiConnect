@@ -159,7 +159,8 @@ export default function FriendsPage() {
   const incomingRequestSenderIds = receivedRequests?.map(r => r.senderId) || [];
 
   const nonFriendUsers = users?.filter(u => 
-      u.id !== authUser?.uid && 
+      u.id !== authUser?.uid &&
+      u.online === true &&
       !friendIds.includes(u.id) && 
       !sentRequestReceiverIds.includes(u.id) && 
       !incomingRequestSenderIds.includes(u.id)
