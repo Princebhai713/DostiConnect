@@ -14,25 +14,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    // If auth state is checked and there's no user, redirect to login
-    if (!isUserLoading && !user) {
-      router.replace('/login');
-    }
-    // If the user is anonymous, they should be on the /live page, not in the main app layout.
-    // The main app layout is for registered users.
-    if (!isUserLoading && user?.isAnonymous) {
-      router.replace('/live');
-    }
-  }, [user, isUserLoading, router]);
-
 
   const handleLogout = async () => {
-    await auth.signOut();
+    if (auth) {
+      await auth.signOut();
+    }
     router.push('/login');
   };
   
-  if (isUserLoading || !user || user.isAnonymous) {
+  if (isUserLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <p>Loading...</p>
