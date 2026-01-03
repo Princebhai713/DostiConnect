@@ -3,6 +3,7 @@ import { Timestamp } from 'firebase/firestore';
 export type User = {
   id: string;
   username: string;
+  email: string; // Added email field
   avatar?: string;
   online: boolean;
   registrationDate: string;
