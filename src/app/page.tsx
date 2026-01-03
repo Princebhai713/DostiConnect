@@ -1,30 +1,22 @@
 'use client';
 
-import { useUser } from '@/firebase';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Home() {
-  const { user, isUserLoading } = useUser();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (!isUserLoading) {
-      if (user) {
-        // If user is logged in (including anonymous), redirect to dashboard
-        router.replace('/dashboard');
-      } else {
-        // If no user is logged in at all, redirect to login.
-        // The guest/anonymous flow starts from the login page.
-        router.replace('/login');
-      }
-    }
-  }, [user, isUserLoading, router]);
-
-  // You can render a loading spinner here while the redirect is happening
   return (
-    <div className="flex h-screen w-full items-center justify-center">
-      <p>Loading...</p>
-    </div>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+      <div className="w-full max-w-lg">
+         <Card>
+          <CardHeader>
+            <CardTitle>DostiConnect</CardTitle>
+            <CardDescription>Welcome to your new simplified app!</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>This is the only page in the application now. All other features have been removed as requested.</p>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
   );
 }
