@@ -18,6 +18,7 @@
  *   to the receiver. This ensures clear control over the request lifecycle.
  * - Chat Security: Access to chat messages is controlled by a membership list on the
  *   parent chat document. This requires an extra document read (`get`) but provides
+
  *   strong, scalable security for conversations. It is assumed the parent chat
  *   document at `/users/{userId}/chats/{chatId}` contains a `participantIds` array.
  * - Read-Only Suggestions: Friend suggestions are treated as read-only for the client.
@@ -89,8 +90,8 @@ service cloud.firestore {
      * Checks if the requesting user is a participant in a chat.
      * Assumes the parent chat document has a `participantIds` array.
      */
-    function isChatParticipant(userId, chatId) {
-      return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/users/$(userId)/chats/$(chatId)).data.participantIds;
+    function isChatParticipant(chatId) {
+      return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds;
     }
 
     /**
@@ -101,8 +102,7 @@ service cloud.firestore {
      * @principle Restricts access to a user's own data tree and prevents user enumeration.
      */
     match /users/{userId} {
-      allow get: if isSignedIn();
-      allow list: if false;
+      allow get, list: if isSignedIn();
       allow create: if isOwner(userId) && hasCorrectUserIdOnCreate(userId);
       allow update: if isExistingOwner(userId) && userIdIsImmutable();
       allow delete: if isExistingOwner(userId);
@@ -124,17 +124,27 @@ service cloud.firestore {
     }
     
     /**
+     * @description Manages the chat documents themselves.
+     * @path /chats/{chatId}
+     * @allow (read) A user who is a participant in the chat.
+     * @principle Access is granted based on membership in the document.
+     */
+    match /chats/{chatId} {
+        allow read, write: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+    }
+
+    /**
      * @description Manages individual chat messages within a conversation.
-     * @path /users/{userId}/chats/{chatId}/messages/{messageId}
+     * @path /chats/{chatId}/messages/{messageId}
      * @allow (create) A participant in a chat sends a new message.
      * @deny (get) A user who is not part of the chat tries to read a message.
      * @principle Access is granted based on membership in the parent chat document.
      */
-    match /users/{userId}/chats/{chatId}/messages/{messageId} {
-      allow get, list: if isChatParticipant(userId, chatId);
-      allow create: if isChatParticipant(userId, chatId) && isOwner(request.resource.data.senderId);
-      allow update: if docExists() && isChatParticipant(userId, chatId) && isOwner(resource.data.senderId);
-      allow delete: if docExists() && isChatParticipant(userId, chatId) && isOwner(resource.data.senderId);
+    match /chats/{chatId}/messages/{messageId} {
+      allow get, list: if isChatParticipant(chatId);
+      allow create: if isChatParticipant(chatId) && isOwner(request.resource.data.senderId);
+      allow update: if docExists() && isChatParticipant(chatId) && isOwner(resource.data.senderId);
+      allow delete: if docExists() && isChatParticipant(chatId) && isOwner(resource.data.senderId);
     }
     
     /**

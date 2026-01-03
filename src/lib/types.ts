@@ -7,10 +7,11 @@ export type User = {
   avatar?: string;
   online: boolean;
   registrationDate: string;
+  friendIds?: string[];
 };
 
 export type Message = {
-  id: string;
+  id?: string;
   senderId: string;
   receiverId: string;
   content: string;

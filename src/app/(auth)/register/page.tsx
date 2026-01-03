@@ -66,6 +66,11 @@ export default function RegisterPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
+      if (!firestore) {
+          toast({ variant: 'destructive', title: 'Error', description: 'Firestore not initialized' });
+          return;
+      }
+      
       initiateEmailSignUp(auth, values.email, values.password);
       
       const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -77,6 +82,7 @@ export default function RegisterPage() {
             email: values.email, // Storing email for username login
             registrationDate: new Date().toISOString(),
             online: true,
+            friendIds: [],
           };
           setDocumentNonBlocking(userRef, userData, { merge: true });
           unsubscribe();

@@ -6,10 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { User, FriendRequest } from "@/lib/types";
-import { collection, query, where, doc, getDocs, writeBatch } from "firebase/firestore";
+import { User, FriendRequest, Chat } from "@/lib/types";
+import { collection, query, where, doc, getDocs, writeBatch, serverTimestamp } from "firebase/firestore";
 import { MessageCircle, Search, UserCheck, UserX, UserPlus } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -18,23 +19,23 @@ export default function FriendsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const router = useRouter();
 
-  const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
+  const usersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
   const { data: users } = useCollection<User>(usersRef);
 
   const friendRequestsRef = useMemoFirebase(() => {
-    if (!authUser) return null;
-    return query(collection(firestore, `users/${authUser.uid}/friendRequests`), where("status", "==", "pending"));
+    if (!authUser || !firestore) return null;
+    return query(collection(firestore, `users/${authUser.uid}/friendRequests`), where("status", "==", "pending"), where("receiverId", "==", authUser.uid));
   }, [firestore, authUser]);
   const { data: friendRequests } = useCollection<FriendRequest>(friendRequestsRef);
   
-  const friendsRef = useMemoFirebase(() => {
-     if (!authUser) return null;
-    return query(collection(firestore, 'users'), where('id', '!=', authUser.uid)); // Mock for now
+  const friendsQuery = useMemoFirebase(() => {
+     if (!authUser || !firestore) return null;
+    return query(collection(firestore, 'users'), where('friendIds', 'array-contains', authUser.uid)); 
   }, [firestore, authUser]);
-  const { data: allUsers } = useCollection<User>(friendsRef);
+  const { data: friends } = useCollection<User>(friendsQuery);
 
-  const friends = allUsers; // This needs a proper friend list implementation
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -43,20 +44,17 @@ export default function FriendsPage() {
   const handleAddFriend = async (targetUser: User) => {
     if (!authUser || !firestore) return;
     
-    const friendRequest: Omit<FriendRequest, 'id'> = {
+    const friendRequest: Omit<FriendRequest, 'id' | 'sentDate'> = {
       senderId: authUser.uid,
       receiverId: targetUser.id,
       status: 'pending',
-      sentDate: new Date(),
     };
     
-    // Add request to receiver's subcollection
     const receiverRequestRef = collection(firestore, `users/${targetUser.id}/friendRequests`);
-    addDocumentNonBlocking(receiverRequestRef, friendRequest);
+    addDocumentNonBlocking(receiverRequestRef, {...friendRequest, sentDate: serverTimestamp()});
 
-    // Add request to sender's subcollection for tracking
     const senderRequestRef = collection(firestore, `users/${authUser.uid}/friendRequests`);
-    addDocumentNonBlocking(senderRequestRef, friendRequest);
+    addDocumentNonBlocking(senderRequestRef, {...friendRequest, sentDate: serverTimestamp()});
     
     toast({
         title: "Friend Request Sent",
@@ -73,15 +71,26 @@ export default function FriendsPage() {
     const receiverRequestRef = doc(firestore, `users/${request.receiverId}/friendRequests`, request.id);
     batch.update(receiverRequestRef, { status: "accepted" });
     
-    // Update the request status in sender's collection (find it first)
-    const senderRequestsQuery = query(collection(firestore, `users/${request.senderId}/friendRequests`), where("senderId", "==", request.senderId), where("receiverId", "==", request.receiverId));
+    // Update the request status in sender's collection
+    const senderRequestsQuery = query(
+        collection(firestore, `users/${request.senderId}/friendRequests`), 
+        where("senderId", "==", request.senderId), 
+        where("receiverId", "==", request.receiverId)
+    );
     const senderRequestsSnapshot = await getDocs(senderRequestsQuery);
     senderRequestsSnapshot.forEach(doc => {
        batch.update(doc.ref, { status: "accepted" });
     });
 
-    // In a real app, you would also add to a 'friends' subcollection for both users.
-    // For now we'll just update the status.
+    // Add friend IDs to both users' documents
+    const authUserRef = doc(firestore, 'users', authUser.uid);
+    const friendUserRef = doc(firestore, 'users', request.senderId);
+
+    batch.update(authUserRef, { friendIds: [...(friends?.map(f => f.id) || []), request.senderId] });
+    
+    const senderUser = users?.find(u => u.id === request.senderId);
+    batch.update(friendUserRef, { friendIds: [...(senderUser?.friendIds || []), authUser.uid] });
+
 
     await batch.commit();
 
@@ -95,11 +104,9 @@ export default function FriendsPage() {
       
       const batch = writeBatch(firestore);
 
-      // Delete request from receiver's collection
       const receiverRequestRef = doc(firestore, `users/${request.receiverId}/friendRequests`, request.id);
       batch.delete(receiverRequestRef);
 
-      // Delete request from sender's collection
       const senderRequestsQuery = query(collection(firestore, `users/${request.senderId}/friendRequests`), where("senderId", "==", request.senderId), where("receiverId", "==", request.receiverId));
       const senderRequestsSnapshot = await getDocs(senderRequestsQuery);
       senderRequestsSnapshot.forEach(doc => {
@@ -114,13 +121,36 @@ export default function FriendsPage() {
       });
   };
 
+  const handleStartChat = async (friend: User) => {
+    if (!authUser || !firestore) return;
+
+    const chatId = [authUser.uid, friend.id].sort().join('-');
+    const chatRef = doc(firestore, 'chats', chatId);
+
+    // Create chat doc if it doesn't exist
+    await setDocumentNonBlocking(chatRef, {
+        id: chatId,
+        participantIds: [authUser.uid, friend.id],
+        lastMessage: null,
+    }, { merge: true });
+
+    router.push(`/chat/${friend.id}`);
+  };
+
   const getSender = (senderId: string) => users?.find(u => u.id === senderId);
 
+  const friendIds = friends?.map(f => f.id) || [];
+  const sentRequestReceiverIds = (friendRequests?.map(r => r.receiverId) || []);
 
-  // Very basic friend filtering for now
-  const nonFriendUsers = users?.filter(u => u.id !== authUser?.uid /* Add more complex friend logic here */ );
+  const nonFriendUsers = users?.filter(u => 
+      u.id !== authUser?.uid && 
+      !friendIds.includes(u.id) &&
+      !sentRequestReceiverIds.includes(u.id)
+  );
   
-  const searchResults = nonFriendUsers?.filter(u => u.username.toLowerCase().includes(searchTerm.toLowerCase()));
+  const searchResults = searchTerm 
+      ? nonFriendUsers?.filter(u => u.username.toLowerCase().includes(searchTerm.toLowerCase()))
+      : [];
 
 
   return (
@@ -178,10 +208,8 @@ export default function FriendsPage() {
                     <p className="text-sm text-muted-foreground">@{friend.id}</p>
                   </div>
                 </div>
-                <Button asChild variant="ghost" size="icon">
-                  <Link href={`/chat/${friend.id}`}>
+                <Button variant="ghost" size="icon" onClick={() => handleStartChat(friend)}>
                     <MessageCircle className="text-primary"/>
-                  </Link>
                 </Button>
               </div>
             ))}
@@ -194,9 +222,6 @@ export default function FriendsPage() {
           <CardTitle>Find New Friends</CardTitle>
           <div className="flex w-full items-center space-x-2 pt-2">
             <Input type="text" placeholder="Enter a username" value={searchTerm} onChange={handleSearch} />
-            <Button type="submit">
-              <Search className="mr-2 h-4 w-4" /> Search
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

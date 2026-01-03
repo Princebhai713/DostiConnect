@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { MessageSquarePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Chat, User, Message } from '@/lib/types';
-import { collection, query, where, getDocs, doc, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -19,45 +19,63 @@ export default function ChatListLayout({ children }: { children: React.ReactNode
   const [chats, setChats] = useState<(Chat & { friend: User, lastMessage?: Message })[]>([]);
 
   // 1. Fetch user's chats
-  const chatsRef = useMemoFirebase(() => {
-    if (!authUser) return null;
+  const chatsQuery = useMemoFirebase(() => {
+    if (!firestore || !authUser) return null;
     return query(collection(firestore, 'chats'), where('participantIds', 'array-contains', authUser.uid));
   }, [firestore, authUser]);
 
-  const { data: userChats, isLoading: chatsLoading } = useCollection<Chat>(chatsRef);
+  const { data: userChats, isLoading: chatsLoading } = useCollection<Chat>(chatsQuery);
 
   // 2. Fetch user data for all participants & listen to last message
   useEffect(() => {
     if (!userChats || !firestore || !authUser) return;
 
+    const unsubscribers: (() => void)[] = [];
+
     const processChats = async () => {
-      const populatedChats: (Chat & { friend: User, lastMessage?: Message })[] = [];
-
-      for (const chat of userChats) {
+      const populatedChats = await Promise.all(userChats.map(async (chat) => {
         const friendId = chat.participantIds.find(id => id !== authUser.uid);
-        if (friendId) {
-          const userDocRef = doc(firestore, 'users', friendId);
-          const userSnap = await getDocs(query(collection(firestore, 'users'), where('id', '==', friendId)));
-          
-          if (!userSnap.empty) {
-            const friendData = userSnap.docs[0].data() as User;
-            
-            // Get last message
-             const messagesRef = collection(firestore, `chats/${chat.id}/messages`);
-             const q = query(messagesRef, where("timestamp", "!=", null));
-             
-             // This part is not fully real-time yet. For full real-time, you'd need to manage multiple listeners.
-             const lastMessageSnap = await getDocs(q);
-             const lastMessage = lastMessageSnap.docs?.[0]?.data() as Message | undefined;
+        if (!friendId) return null;
 
-            populatedChats.push({ ...chat, friend: friendData, lastMessage });
-          }
-        }
-      }
-      setChats(populatedChats);
+        const userSnap = await getDocs(query(collection(firestore, 'users'), where('id', '==', friendId)));
+        if (userSnap.empty) return null;
+
+        const friendData = userSnap.docs[0].data() as User;
+        
+        return new Promise<{ chat: Chat; friend: User }>((resolve) => {
+          const messagesRef = collection(firestore, `chats/${chat.id}/messages`);
+          const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(1));
+
+          const unsubscribe = onSnapshot(q, (snapshot) => {
+             const lastMessage = snapshot.docs[0]?.data() as Message | undefined;
+             
+             setChats(prevChats => {
+                const existingChatIndex = prevChats.findIndex(c => c.id === chat.id);
+                const newChatData = { ...chat, friend: friendData, lastMessage };
+                
+                if (existingChatIndex > -1) {
+                    const updatedChats = [...prevChats];
+                    updatedChats[existingChatIndex] = newChatData;
+                    return updatedChats;
+                } else {
+                    return [...prevChats, newChatData];
+                }
+             });
+          });
+          unsubscribers.push(unsubscribe);
+          // We don't need to resolve anything here as state is updated in the listener
+        });
+      }));
+
+      // Filter out nulls if any chat processing failed
+      const validPopulatedChats = populatedChats.filter(Boolean);
     };
 
     processChats();
+    
+    return () => {
+        unsubscribers.forEach(unsub => unsub());
+    }
 
   }, [userChats, firestore, authUser]);
 
@@ -69,7 +87,13 @@ export default function ChatListLayout({ children }: { children: React.ReactNode
       <div className={cn("bg-background border-r flex flex-col", !showChatList && "hidden md:flex")}>
         <ScrollArea className="flex-1">
           <div className="flex flex-col">
-            {chats.map((chat) => (
+            {chats
+              .sort((a, b) => {
+                  const timeA = (a.lastMessage?.timestamp as any)?.seconds || 0;
+                  const timeB = (b.lastMessage?.timestamp as any)?.seconds || 0;
+                  return timeB - timeA;
+              })
+              .map((chat) => (
               <Link
                 key={chat.id}
                 href={`/chat/${chat.friend.id}`}
