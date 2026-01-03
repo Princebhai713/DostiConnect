@@ -119,7 +119,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Choose a login method below.
+            Enter your credentials to access your account.
           </CardDescription>
         </CardHeader>
         <Form {...form}>
@@ -166,18 +166,10 @@ export default function LoginPage() {
                 )}
               />
                <Button className="w-full" type="submit">
-                Sign in with Email
+                Sign in
               </Button>
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
-               <div className="relative w-full flex items-center justify-center">
-                <div className="flex-grow border-t border-muted-foreground"></div>
-                <span className="flex-shrink mx-4 text-muted-foreground">OR</span>
-                <div className="flex-grow border-t border-muted-foreground"></div>
-              </div>
-               <Button className="w-full" variant="outline" onClick={() => router.push('/login/phone')} type="button">
-                Login with Phone
-              </Button>
               <div className="text-center text-sm">
                 Don&apos;t have an account?{' '}
                 <Link href="/register" className="underline text-primary">
