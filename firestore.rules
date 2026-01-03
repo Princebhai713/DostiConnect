@@ -118,8 +118,8 @@ service cloud.firestore {
     match /users/{userId}/friendRequests/{friendRequestId} {
       allow get: if isSignedIn() && (isOwner(resource.data.senderId) || isOwner(resource.data.receiverId));
       allow list: if isOwner(userId);
-      // Allow creation if the signed-in user is the sender AND the path corresponds to either the sender or receiver
-      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid && (userId == request.resource.data.senderId || userId == request.resource.data.receiverId);
+      // Allow creation if the signed-in user is the sender. The path can be under the sender's or receiver's ID.
+      allow create: if isSignedIn() && isOwner(request.resource.data.senderId);
       allow update: if docExists() && isOwner(userId) && isOwner(resource.data.receiverId);
       allow delete: if docExists() && (isOwner(resource.data.senderId) || isOwner(resource.data.receiverId));
     }
