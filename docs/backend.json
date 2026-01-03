@@ -1,0 +1,228 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user in the DostiConnect application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "username": {
+          "type": "string",
+          "description": "The user's unique username."
+        },
+        "registrationDate": {
+          "type": "string",
+          "description": "The date and time when the user registered.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "registrationDate"
+      ]
+    },
+    "FriendRequest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FriendRequest",
+      "type": "object",
+      "description": "Represents a friend request between two users.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the friend request."
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Reference to the user who sent the friend request. (Relationship: User 1:N FriendRequest as Sender)"
+        },
+        "receiverId": {
+          "type": "string",
+          "description": "Reference to the user who received the friend request. (Relationship: User 1:N FriendRequest as Receiver)"
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the friend request (e.g., 'pending', 'accepted', 'declined')."
+        },
+        "sentDate": {
+          "type": "string",
+          "description": "The date and time when the friend request was sent.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "senderId",
+        "receiverId",
+        "status",
+        "sentDate"
+      ]
+    },
+    "ChatMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatMessage",
+      "type": "object",
+      "description": "Represents a single chat message between two users.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the chat message."
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Reference to the user who sent the message. (Relationship: User 1:N ChatMessage as Sender)"
+        },
+        "receiverId": {
+          "type": "string",
+          "description": "Reference to the user who received the message. (Relationship: User 1:N ChatMessage as Receiver)"
+        },
+        "content": {
+          "type": "string",
+          "description": "The text content of the message. This should be encrypted end to end."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The date and time when the message was sent.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "senderId",
+        "receiverId",
+        "content",
+        "timestamp"
+      ]
+    },
+    "FriendSuggestion": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FriendSuggestion",
+      "type": "object",
+      "description": "Represents a friend suggestion for a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the friend suggestion."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the user for whom the suggestion is made. (Relationship: User 1:N FriendSuggestion)"
+        },
+        "suggestedFriendId": {
+          "type": "string",
+          "description": "Reference to the suggested friend. (Relationship: User 1:N FriendSuggestion)"
+        },
+        "algorithmUsed": {
+          "type": "string",
+          "description": "The name of the algorithm used to generate the friend suggestion."
+        },
+        "confidenceScore": {
+          "type": "number",
+          "description": "A score representing the confidence in the friend suggestion."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "suggestedFriendId",
+        "algorithmUsed",
+        "confidenceScore"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. The 'userId' parameter is the unique identifier for each user. Path-based ownership simplifies security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/friendRequests/{friendRequestId}",
+        "definition": {
+          "entityName": "FriendRequest",
+          "schema": {
+            "$ref": "#/backend/entities/FriendRequest"
+          },
+          "description": "Stores friend requests for each user. Enables efficient queries for friend requests related to a user. Includes denormalized 'senderId' and 'receiverId' to enable checking if the request.auth.uid matches to allow the request.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user who is either sending or receiving the friend request."
+            },
+            {
+              "name": "friendRequestId",
+              "description": "The unique identifier for the friend request."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/chats/{chatId}/messages/{messageId}",
+        "definition": {
+          "entityName": "ChatMessage",
+          "schema": {
+            "$ref": "#/backend/entities/ChatMessage"
+          },
+          "description": "Stores chat messages for a specific chat between two users. Requires end-to-end encryption for message content.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for one of the users participating in the chat."
+            },
+            {
+              "name": "chatId",
+              "description": "The unique identifier for the chat between the two users."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique identifier for the chat message."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/friendSuggestions/{friendSuggestionId}",
+        "definition": {
+          "entityName": "FriendSuggestion",
+          "schema": {
+            "$ref": "#/backend/entities/FriendSuggestion"
+          },
+          "description": "Stores friend suggestions for each user.  Path-based ownership simplifies security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user to whom the friend suggestion is made."
+            },
+            {
+              "name": "friendSuggestionId",
+              "description": "The unique identifier for the friend suggestion."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support the DostiConnect application's features, focusing on secure and efficient data access.  Authorization Independence is achieved through path-based ownership for user-specific data and membership maps for collaborative data.  The structure also segregates data based on access patterns.\n\n1.  **Users:** User data is stored in `/users/{userId}`. This path-based ownership simplifies security rules for user-specific data.\n2.  **Friend Requests:** Friend requests are stored in `/users/{userId}/friendRequests/{friendRequestId}`. This structure allows a user to query friend requests related to them and simplifies security rules, as each request's receiver and sender are implicitly authorized via the path.\n3.  **Chat Messages:** Chat messages are stored in a subcollection `/users/{userId}/chats/{chatId}/messages/{messageId}`. End-to-end encryption is a requirement. This structure enables efficient querying of messages within a chat and allows straightforward security rules based on chat membership.\n4.  **Friend Suggestions:** Friend Suggestions are stored in `/users/{userId}/friendSuggestions/{friendSuggestionId}`. Each user can only view their friend suggestions. \n\n**Authorization Independence:** The denormalization strategy focuses on embedding authorization context directly into the document paths or within the documents themselves.  For example, storing friend requests as subcollections under each user's document enables rules to be written based on the request.auth.uid matching either the senderId or receiverId within the document.\n\n**QAPs (Rules are not Filters):** The structure supports secure `list` operations by segregating data based on access patterns. Path based ownership enables performant rules that do not require filtering.\n"
+  }
+}
