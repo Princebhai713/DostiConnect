@@ -46,8 +46,12 @@ export default function FriendsPage() {
   
   const handleAddFriend = async (targetUser: User) => {
     if (!authUser || !firestore) return;
-    
-    const friendRequestData: Omit<FriendRequest, 'id'> = {
+
+    const newRequestRef = doc(collection(firestore, 'some_path_for_id_generation')); // Just to get a new ID
+    const requestId = newRequestRef.id;
+
+    const friendRequestData: FriendRequest = {
+      id: requestId,
       senderId: authUser.uid,
       receiverId: targetUser.id,
       status: 'pending',
@@ -55,12 +59,11 @@ export default function FriendsPage() {
     };
     
     // Non-blocking way to add requests for both users
-    const receiverRequestCol = collection(firestore, `users/${targetUser.id}/friendRequests`);
-    const newRequestRef = doc(receiverRequestCol); // Create a new doc ref with a unique ID
-    setDocumentNonBlocking(newRequestRef, { ...friendRequestData, id: newRequestRef.id });
+    const receiverRequestRef = doc(firestore, `users/${targetUser.id}/friendRequests`, requestId);
+    setDocumentNonBlocking(receiverRequestRef, friendRequestData, { merge: true });
 
-    const senderRequestRef = doc(collection(firestore, `users/${authUser.uid}/friendRequests`), newRequestRef.id);
-    setDocumentNonBlocking(senderRequestRef, { ...friendRequestData, id: newRequestRef.id });
+    const senderRequestRef = doc(firestore, `users/${authUser.uid}/friendRequests`, requestId);
+    setDocumentNonBlocking(senderRequestRef, friendRequestData, { merge: true });
     
     toast({
         title: "Friend Request Sent",
