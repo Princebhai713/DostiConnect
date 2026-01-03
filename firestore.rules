@@ -118,7 +118,7 @@ service cloud.firestore {
     match /users/{userId}/friendRequests/{friendRequestId} {
       allow get: if isSignedIn() && (isOwner(resource.data.senderId) || isOwner(resource.data.receiverId));
       allow list: if isOwner(userId);
-      // Allow creation if the signed-in user is the sender. The path can be under the sender's or receiver's ID.
+      // Allow creation if the signed-in user is the sender.
       allow create: if isSignedIn() && isOwner(request.resource.data.senderId);
       allow update: if docExists() && isOwner(userId) && isOwner(resource.data.receiverId);
       allow delete: if docExists() && (isOwner(resource.data.senderId) || isOwner(resource.data.receiverId));
@@ -127,11 +127,11 @@ service cloud.firestore {
     /**
      * @description Manages the chat documents themselves.
      * @path /chats/{chatId}
-     * @allow (read) A user who is a participant in the chat.
+     * @allow (read, write) A user who is a participant in the chat.
      * @principle Access is granted based on membership in the document.
      */
     match /chats/{chatId} {
-        allow read, write: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+        allow get, list, write: if isSignedIn() && request.auth.uid in resource.data.participantIds;
     }
 
     /**
