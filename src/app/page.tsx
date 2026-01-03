@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import usePartySocket from 'partysocket/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from "@/hooks/use-toast"
 
 type User = {
   id: string;
@@ -13,6 +14,7 @@ type User = {
 export default function Home() {
   const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const { toast } = useToast()
 
   const socket = usePartySocket({
     host: 'dosticonnect-party.gen-studio-a24a.partykit.dev',
@@ -27,8 +29,21 @@ export default function Home() {
       }
       if (message.type === 'user-joined') {
         setOnlineUsers((prev) => [...prev, message.user]);
+        if (message.user.id !== currentUser?.id) {
+            toast({
+                title: "New user joined! 👋",
+                description: `${message.user.name} is now online.`,
+            })
+        }
       }
       if (message.type === 'user-left') {
+        const leftUser = onlineUsers.find(u => u.id === message.id);
+        if (leftUser) {
+             toast({
+                title: "User left 🏃",
+                description: `${leftUser.name} went offline.`,
+            })
+        }
         setOnlineUsers((prev) => prev.filter((u) => u.id !== message.id));
       }
       if (message.type === 'welcome') {
@@ -53,9 +68,9 @@ export default function Home() {
           <CardHeader>
             <div className="flex justify-between items-center">
               <div>
-                <CardTitle>DostiConnect - Live</CardTitle>
+                <CardTitle>Settings</CardTitle>
                 <CardDescription>
-                  Users currently online on this website.
+                  Manage your preferences and see who's online.
                 </CardDescription>
               </div>
               {currentUser && (
@@ -64,6 +79,7 @@ export default function Home() {
             </div>
           </CardHeader>
           <CardContent>
+             <h3 className="text-lg font-medium mb-4">Currently Online</h3>
             {onlineUsers.length > 1 ? (
               <ul className="space-y-2">
                 {onlineUsers.map((user) => (
@@ -78,7 +94,7 @@ export default function Home() {
                 ))}
               </ul>
             ) : (
-              <p>Looks like you're the only one here right now.</p>
+              <p className="text-muted-foreground">Looks like you're the only one here right now.</p>
             )}
           </CardContent>
         </Card>
