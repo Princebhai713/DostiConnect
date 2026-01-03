@@ -12,12 +12,20 @@ import { doc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
+import { useRef, useState } from 'react';
+import { useStorage } from '@/firebase/storage/use-storage';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useToast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
 
 export default function SettingsPage() {
   const { user: authUser, isUserLoading } = useUser();
   const firestore = useFirestore();
   const auth = useAuth();
   const router = useRouter();
+  const { uploadFile, isUploading, uploadProgress, error: storageError } = useStorage();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser) return null;
@@ -31,6 +39,33 @@ export default function SettingsPage() {
     router.push('/login');
   };
   
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+  
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !authUser) return;
+
+    try {
+      const downloadURL = await uploadFile(file, `avatars/${authUser.uid}/${file.name}`);
+      if (downloadURL && userDocRef) {
+        await updateDocumentNonBlocking(userDocRef, { avatar: downloadURL });
+        toast({
+          title: 'Success!',
+          description: 'Your profile picture has been updated.',
+        });
+      }
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Upload Failed',
+        description: storageError || 'Could not upload your profile picture.',
+      });
+    }
+  };
+
   if (isUserLoading || isUserDocLoading) {
     return (
       <div className="container mx-auto py-4">
@@ -60,11 +95,18 @@ export default function SettingsPage() {
         <CardHeader>
           <div className="flex items-center gap-4">
             <div className="relative">
+               <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange}
+                className="hidden"
+                accept="image/*"
+              />
               <Avatar className="h-20 w-20">
                 <AvatarImage src={user?.avatar} alt={user?.username} />
-                <AvatarFallback>{user?.username.charAt(0)}</AvatarFallback>
+                <AvatarFallback>{user?.username?.charAt(0)}</AvatarFallback>
               </Avatar>
-              <Button size="icon" className="absolute bottom-0 right-0 rounded-full h-7 w-7">
+              <Button size="icon" className="absolute bottom-0 right-0 rounded-full h-7 w-7" onClick={handleAvatarClick} disabled={isUploading}>
                 <Camera className="h-4 w-4" />
               </Button>
             </div>
@@ -73,6 +115,12 @@ export default function SettingsPage() {
               <p className="text-muted-foreground">@{user?.id}</p>
             </div>
           </div>
+          {isUploading && (
+             <div className="mt-4">
+                <Progress value={uploadProgress} className="w-full" />
+                <p className="text-sm text-center text-muted-foreground mt-1">{Math.round(uploadProgress)}% uploaded</p>
+             </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-1">
           <SettingsItem icon={KeyRound} title="Account" description="Privacy, security, change number" />
