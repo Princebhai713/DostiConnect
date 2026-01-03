@@ -8,6 +8,7 @@ export type User = {
   online: boolean;
   registrationDate: string;
   friendIds?: string[];
+  isAnonymous?: boolean;
 };
 
 export type Message = {

@@ -11,7 +11,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { AppLogo } from '@/components/app-logo';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -25,12 +24,13 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useAuth, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInAnonymously, signInWithEmailAndPassword } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import React from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 
 const formSchema = z.object({
   loginId: z.string().min(1, 'Please enter your email or username.'),
@@ -43,6 +43,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = React.useState(false);
+  const [isGuestLoading, setIsGuestLoading] = React.useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -55,7 +56,6 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     let email = values.loginId;
 
-    // Check if loginId is a username
     if (!values.loginId.includes('@')) {
       if (!firestore) {
         toast({
@@ -109,6 +109,21 @@ export default function LoginPage() {
         title: 'Login Failed',
         description: 'Invalid credentials. Please check your details and try again.',
       });
+    }
+  }
+
+  const handleGuestLogin = async () => {
+    setIsGuestLoading(true);
+    try {
+        await signInAnonymously(auth);
+        router.push('/live');
+    } catch (error) {
+        toast({
+            variant: 'destructive',
+            title: 'Guest Login Failed',
+            description: 'Could not sign in as a guest. Please try again.',
+        });
+        setIsGuestLoading(false);
     }
   }
 
@@ -169,16 +184,26 @@ export default function LoginPage() {
                 Sign in
               </Button>
             </CardContent>
-            <CardFooter className="flex flex-col gap-4">
-              <div className="text-center text-sm">
-                Don&apos;t have an account?{' '}
-                <Link href="/register" className="underline text-primary">
-                  Sign up
-                </Link>
-              </div>
-            </CardFooter>
           </form>
         </Form>
+        <div className="flex items-center px-6 pb-4">
+          <Separator className="flex-1" />
+          <span className="px-4 text-xs text-muted-foreground">OR</span>
+          <Separator className="flex-1" />
+        </div>
+        <CardContent>
+            <Button variant="outline" className="w-full" onClick={handleGuestLogin} disabled={isGuestLoading}>
+                {isGuestLoading ? 'Entering...' : 'Browse as Guest'}
+            </Button>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-4">
+          <div className="text-center text-sm">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="underline text-primary">
+              Sign up
+            </Link>
+          </div>
+        </CardFooter>
       </Card>
     </div>
   );

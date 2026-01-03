@@ -34,6 +34,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Guest user view
+  if (user.isAnonymous) {
+      return (
+         <div className="flex flex-col h-screen">
+          <header className="bg-primary text-primary-foreground shadow-md z-10">
+            <div className="container mx-auto px-4">
+              <div className="flex items-center justify-between h-16">
+                <h1 className="text-xl font-bold">DostiConnect (Guest Mode)</h1>
+                <div className="flex items-center gap-2">
+                   <Button variant="ghost" className="text-primary-foreground" asChild>
+                    <Link href="/login">Login</Link>
+                  </Button>
+                  <Button variant="secondary" asChild>
+                     <Link href="/register">Sign Up</Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </header>
+          <main className="flex-1 bg-muted/20 overflow-y-auto">
+            {children}
+          </main>
+        </div>
+      )
+  }
+
   return (
     <div className="flex flex-col h-screen">
       <header className="bg-primary text-primary-foreground shadow-md z-10">
