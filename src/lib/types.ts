@@ -1,23 +1,33 @@
+import { Timestamp } from 'firebase/firestore';
+
 export type User = {
   id: string;
-  name: string;
-  avatar: string;
+  username: string;
+  avatar?: string;
   online: boolean;
+  registrationDate: string;
 };
 
 export type Message = {
   id: string;
-  sender: User;
+  senderId: string;
+  receiverId: string;
   content: string;
-  timestamp: string;
+  timestamp: Timestamp | Date;
 };
 
 export type FriendRequest = {
   id: string;
-  user: User;
+  senderId: string;
+  receiverId: string;
+  status: 'pending' | 'accepted' | 'declined';
+  sentDate: Timestamp | Date;
 };
 
 export type Chat = {
-  friend: User;
-  messages: Message[];
+  id: string;
+  participantIds: string[];
+  lastMessage?: Message;
 };
+
+export type UserWithAvatar = User & { avatar: string };

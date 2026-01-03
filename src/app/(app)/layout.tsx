@@ -1,11 +1,39 @@
+'use client';
+
 import Link from 'next/link';
 import { AppLogo } from '@/components/app-logo';
-import { currentUser } from '@/lib/data';
-import { MoreVertical, Search, Camera } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MoreVertical, Search, Camera, LogOut } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
+import { useAuth, useUser } from '@/firebase';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.replace('/login');
+    }
+  }, [user, isUserLoading, router]);
+
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    router.push('/login');
+  };
+  
+  if (isUserLoading || !user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen">
       <header className="bg-primary text-primary-foreground shadow-md z-10">
@@ -18,6 +46,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </Button>
               <Button variant="ghost" size="icon" className="text-primary-foreground">
                 <Search />
+              </Button>
+              <Button variant="ghost" size="icon" className="text-primary-foreground" onClick={handleLogout}>
+                <LogOut />
               </Button>
               <Button variant="ghost" size="icon" className="text-primary-foreground">
                 <MoreVertical />

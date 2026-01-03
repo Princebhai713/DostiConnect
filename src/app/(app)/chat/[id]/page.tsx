@@ -1,33 +1,97 @@
+'use client';
+
 import { notFound } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { chats, currentUser } from '@/lib/data';
+import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { cn } from '@/lib/utils';
 import { Phone, Video, Send, Paperclip, MoreVertical } from 'lucide-react';
+import { collection, doc, query, where, Timestamp, orderBy, serverTimestamp } from 'firebase/firestore';
+import type { User, Message, Chat } from '@/lib/types';
+import { useEffect, useRef, useState } from 'react';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { format } from 'date-fns';
 
 export default function ChatConversationPage({ params }: { params: { id: string } }) {
-  const chat = chats.find(c => c.friend.id === params.id);
+  const { user: authUser } = useUser();
+  const firestore = useFirestore();
+  const [newMessage, setNewMessage] = useState('');
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  if (!chat) {
-    notFound();
+  // Get friend's data
+  const friendQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'users'), where('id', '==', params.id));
+  }, [firestore, params.id]);
+  const { data: friendData } = useCollection<User>(friendQuery);
+  const friend = friendData?.[0];
+
+  // Get chat document
+  const chatId = useMemoFirebase(() => {
+    if (!authUser) return null;
+    return [authUser.uid, params.id].sort().join('-');
+  }, [authUser, params.id]);
+
+  // Get messages
+  const messagesRef = useMemoFirebase(() => {
+    if (!firestore || !chatId) return null;
+    return query(collection(firestore, `chats/${chatId}/messages`), orderBy('timestamp', 'asc'));
+  }, [firestore, chatId]);
+  const { data: messages } = useCollection<Message>(messagesRef);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+        const scrollableView = scrollAreaRef.current.querySelector('div');
+        if (scrollableView) {
+            scrollableView.scrollTop = scrollableView.scrollHeight;
+        }
+    }
+  }, [messages]);
+
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !authUser || !firestore || !chatId) return;
+
+    const messageData = {
+      senderId: authUser.uid,
+      receiverId: params.id,
+      content: newMessage,
+      timestamp: serverTimestamp(),
+    };
+
+    const messagesColRef = collection(firestore, `chats/${chatId}/messages`);
+    addDocumentNonBlocking(messagesColRef, messageData);
+    setNewMessage('');
+  };
+  
+  if (!friend) {
+    // Could show a loading state here
+    return null; 
   }
 
-  const { friend, messages } = chat;
 
   return (
     <div className="flex flex-col h-full bg-cover bg-center" style={{backgroundImage: "url('/chat-bg.png')"}}>
       <header className="flex items-center justify-between p-3 border-b bg-primary text-primary-foreground">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={friend.avatar} alt={friend.name} />
-            <AvatarFallback>{friend.name.charAt(0)}</AvatarFallback>
+            <AvatarImage src={friend.avatar} alt={friend.username} />
+            <AvatarFallback>{friend.username.charAt(0)}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="text-lg font-semibold">{friend.name}</p>
-            {friend.online && <div className="text-sm opacity-80">Online</div>}
-            {!friend.online && <div className="text-sm opacity-80">Offline</div>}
+            <p className="text-lg font-semibold">{friend.username}</p>
+            {friend.online ? (
+                <div className="text-sm opacity-80 flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-green-400 rounded-full" />
+                    Online
+                </div>
+            ) : (
+                <div className="text-sm opacity-80">Offline</div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -43,10 +107,12 @@ export default function ChatConversationPage({ params }: { params: { id: string 
         </div>
       </header>
       
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
-          {messages.map((message) => {
-            const isCurrentUser = message.sender.id === currentUser.id;
+          {messages?.map((message) => {
+            const isCurrentUser = message.senderId === authUser?.uid;
+            const timestamp = (message.timestamp as Timestamp)?.toDate();
+            
             return (
               <div
                 key={message.id}
@@ -54,8 +120,8 @@ export default function ChatConversationPage({ params }: { params: { id: string 
               >
                 {!isCurrentUser && (
                   <Avatar className="h-8 w-8 self-start">
-                    <AvatarImage src={message.sender.avatar} />
-                    <AvatarFallback>{message.sender.name.charAt(0)}</AvatarFallback>
+                    <AvatarImage src={friend.avatar} />
+                    <AvatarFallback>{friend.username.charAt(0)}</AvatarFallback>
                   </Avatar>
                 )}
                 <div
@@ -68,7 +134,7 @@ export default function ChatConversationPage({ params }: { params: { id: string 
                 >
                   <p>{message.content}</p>
                    <p className={cn("text-xs mt-1 text-right", isCurrentUser ? "text-black/50" : "text-black/50")}>
-                    {message.timestamp}
+                    {timestamp ? format(timestamp, 'p') : 'sending...'}
                   </p>
                 </div>
               </div>
@@ -78,15 +144,20 @@ export default function ChatConversationPage({ params }: { params: { id: string 
       </ScrollArea>
       
       <footer className="p-2 bg-transparent border-t-0">
-        <div className="flex items-center gap-2">
+        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
           <Button variant="ghost" size="icon">
             <Paperclip />
           </Button>
-          <Input placeholder="Type a message..." className="flex-1 rounded-full" />
-          <Button size="icon" className="rounded-full bg-accent text-accent-foreground hover:bg-accent/80">
+          <Input 
+            placeholder="Type a message..." 
+            className="flex-1 rounded-full"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+          />
+          <Button type="submit" size="icon" className="rounded-full bg-accent text-accent-foreground hover:bg-accent/80">
             <Send />
           </Button>
-        </div>
+        </form>
       </footer>
     </div>
   );
