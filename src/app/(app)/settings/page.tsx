@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -45,7 +45,7 @@ export default function SettingsPage() {
 
       <Card className="mt-8">
         <CardHeader>
-          <CardTitle>Security</CardTitle>
+          <CardTitle>Security & Account</CardTitle>
           <CardDescription>Manage your password and account security.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -59,15 +59,15 @@ export default function SettingsPage() {
           </div>
           <Button>Change Password</Button>
         </CardContent>
+        <CardFooter className="border-t pt-6 mt-6">
+            <Button variant="destructive" asChild>
+                <Link href="/login">
+                    <LogOut className="mr-2 h-4 w-4" /> Log Out
+                </Link>
+            </Button>
+        </CardFooter>
       </Card>
       
-      <div className="mt-8 flex justify-end">
-        <Button variant="destructive" asChild>
-          <Link href="/login">
-            <LogOut className="mr-2 h-4 w-4" /> Log Out
-          </Link>
-        </Button>
-      </div>
     </div>
   );
 }

@@ -61,6 +61,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 Settings
               </SidebarMenuButton>
             </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton href="/login" tooltip="Logout">
+                <LogOut />
+                Logout
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
@@ -78,14 +84,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </div>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton href="/login" tooltip="Logout">
-                <LogOut />
-                Logout
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
