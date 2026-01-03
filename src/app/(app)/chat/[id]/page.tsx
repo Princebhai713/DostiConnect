@@ -1,6 +1,6 @@
 'use client';
 
-import { notFound } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,11 +10,13 @@ import { cn } from '@/lib/utils';
 import { Phone, Video, Send, Paperclip, MoreVertical } from 'lucide-react';
 import { collection, doc, query, where, Timestamp, orderBy, serverTimestamp } from 'firebase/firestore';
 import type { User, Message, Chat } from '@/lib/types';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, use } from 'react';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { format } from 'date-fns';
 
-export default function ChatConversationPage({ params }: { params: { id: string } }) {
+export default function ChatConversationPage() {
+  const params = useParams();
+  const friendId = params.id as string;
   const { user: authUser } = useUser();
   const firestore = useFirestore();
   const [newMessage, setNewMessage] = useState('');
@@ -23,16 +25,16 @@ export default function ChatConversationPage({ params }: { params: { id: string 
   // Get friend's data
   const friendQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'users'), where('id', '==', params.id));
-  }, [firestore, params.id]);
+    return query(collection(firestore, 'users'), where('id', '==', friendId));
+  }, [firestore, friendId]);
   const { data: friendData } = useCollection<User>(friendQuery);
   const friend = friendData?.[0];
 
   // Get chat document
   const chatId = useMemoFirebase(() => {
     if (!authUser) return null;
-    return [authUser.uid, params.id].sort().join('-');
-  }, [authUser, params.id]);
+    return [authUser.uid, friendId].sort().join('-');
+  }, [authUser, friendId]);
 
   // Get messages
   const messagesRef = useMemoFirebase(() => {
@@ -58,7 +60,7 @@ export default function ChatConversationPage({ params }: { params: { id: string 
 
     const messageData = {
       senderId: authUser.uid,
-      receiverId: params.id,
+      receiverId: friendId,
       content: newMessage,
       timestamp: serverTimestamp(),
     };
