@@ -15,7 +15,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const socket = usePartySocket({
-    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || 'localhost:1999',
+    host: 'dosticonnect-party.gen-studio-a24a.partykit.dev',
     room: 'my-awesome-room',
     onOpen() {
       console.log('connected');
@@ -64,7 +64,7 @@ export default function Home() {
             </div>
           </CardHeader>
           <CardContent>
-            {onlineUsers.length > 0 ? (
+            {onlineUsers.length > 1 ? (
               <ul className="space-y-2">
                 {onlineUsers.map((user) => (
                   <li key={user.id} className="flex items-center gap-3 rounded-md bg-muted p-3">

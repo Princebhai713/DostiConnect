@@ -1,5 +1,6 @@
 {
   "name": "dosticonnect-party",
   "main": "src/party/main.ts",
-  "compatibilityDate": "2024-01-01"
+  "compatibilityDate": "2024-01-01",
+  "host": "dosticonnect-party.gen-studio-a24a.partykit.dev"
 }
