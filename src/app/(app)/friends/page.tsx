@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { User, FriendRequest, Chat } from "@/lib/types";
-import { collection, query, where, doc, getDocs, writeBatch, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, doc, getDocs, writeBatch, serverTimestamp, updateDoc } from "firebase/firestore";
 import { MessageCircle, Search, UserCheck, UserX, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -26,12 +26,11 @@ export default function FriendsPage() {
 
   const friendRequestsRef = useMemoFirebase(() => {
     if (!authUser || !firestore) return null;
-    const requestsCollectionRef = collection(firestore, `users/${authUser.uid}/friendRequests`);
-    return query(requestsCollectionRef, where("status", "==", "pending"));
+    return collection(firestore, `users/${authUser.uid}/friendRequests`);
   }, [firestore, authUser]);
   const { data: allFriendRequests } = useCollection<FriendRequest>(friendRequestsRef);
-
-  const incomingFriendRequests = allFriendRequests?.filter(req => req.receiverId === authUser?.uid);
+  
+  const incomingFriendRequests = allFriendRequests?.filter(req => req.receiverId === authUser?.uid && req.status === 'pending');
   const sentFriendRequests = allFriendRequests?.filter(req => req.senderId === authUser?.uid);
 
   const friendsQuery = useMemoFirebase(() => {
@@ -48,16 +47,6 @@ export default function FriendsPage() {
   const handleAddFriend = async (targetUser: User) => {
     if (!authUser || !firestore) return;
     
-    // Check if a request already exists
-    const sentRequestExists = sentFriendRequests?.some(req => req.receiverId === targetUser.id);
-    if (sentRequestExists) {
-        toast({
-            title: "Request Already Sent",
-            description: `You have already sent a friend request to ${targetUser.username}.`,
-        });
-        return;
-    }
-
     const friendRequestData: Omit<FriendRequest, 'id'> = {
       senderId: authUser.uid,
       receiverId: targetUser.id,
@@ -65,15 +54,13 @@ export default function FriendsPage() {
       sentDate: serverTimestamp(),
     };
     
-    const receiverRequestRef = collection(firestore, `users/${targetUser.id}/friendRequests`);
-    const senderRequestRef = collection(firestore, `users/${authUser.uid}/friendRequests`);
-    
-    // We add the request to both users' subcollections for easy querying
-    const docRef = await addDocumentNonBlocking(receiverRequestRef, friendRequestData);
-    if (docRef) {
-        // use the same ID for the sender's copy
-        setDocumentNonBlocking(doc(senderRequestRef, docRef.id), friendRequestData, {});
-    }
+    // Non-blocking way to add requests for both users
+    const receiverRequestCol = collection(firestore, `users/${targetUser.id}/friendRequests`);
+    const newRequestRef = doc(receiverRequestCol); // Create a new doc ref with a unique ID
+    setDocumentNonBlocking(newRequestRef, { ...friendRequestData, id: newRequestRef.id });
+
+    const senderRequestRef = doc(collection(firestore, `users/${authUser.uid}/friendRequests`), newRequestRef.id);
+    setDocumentNonBlocking(senderRequestRef, { ...friendRequestData, id: newRequestRef.id });
     
     toast({
         title: "Friend Request Sent",
@@ -86,11 +73,10 @@ export default function FriendsPage() {
 
     const batch = writeBatch(firestore);
 
-    // Get the original doc from the receiver's side
+    // Update the request status for both users
     const receiverRequestRef = doc(firestore, `users/${request.receiverId}/friendRequests`, request.id);
     batch.update(receiverRequestRef, { status: "accepted" });
     
-    // Find and update the corresponding request on the sender's side
     const senderRequestRef = doc(firestore, `users/${request.senderId}/friendRequests`, request.id);
     batch.update(senderRequestRef, { status: "accepted" });
 
@@ -109,6 +95,7 @@ export default function FriendsPage() {
 
     toast({
         title: "Friend Request Accepted",
+        description: `You are now friends with ${getSender(request.senderId)?.username}.`,
     });
   };
   
@@ -137,11 +124,9 @@ export default function FriendsPage() {
     const chatId = [authUser.uid, friend.id].sort().join('-');
     const chatRef = doc(firestore, 'chats', chatId);
 
-    // Create chat doc if it doesn't exist
     await setDocumentNonBlocking(chatRef, {
         id: chatId,
         participantIds: [authUser.uid, friend.id],
-        lastMessage: null,
     }, { merge: true });
 
     router.push(`/chat/${friend.id}`);
@@ -150,14 +135,14 @@ export default function FriendsPage() {
   const getSender = (senderId: string) => users?.find(u => u.id === senderId);
 
   const friendIds = friends?.map(f => f.id) || [];
-  const sentRequestReceiverIds = (sentFriendRequests?.map(r => r.receiverId) || []);
-  const incomingRequestSenderIds = (incomingFriendRequests?.map(r => r.senderId) || []);
+  const sentRequestReceiverIds = sentFriendRequests?.map(r => r.receiverId) || [];
+  const incomingRequestSenderIds = incomingFriendRequests?.map(r => r.senderId) || [];
 
   const nonFriendUsers = users?.filter(u => 
       u.id !== authUser?.uid && 
-      !friendIds.includes(u.id) && // not already friends
-      !sentRequestReceiverIds.includes(u.id) && // haven't sent them a request
-      !incomingRequestSenderIds.includes(u.id) // haven't received a request from them
+      !friendIds.includes(u.id) && 
+      !sentRequestReceiverIds.includes(u.id) && 
+      !incomingRequestSenderIds.includes(u.id)
   );
   
   const displayedUsers = searchTerm 
@@ -264,5 +249,3 @@ export default function FriendsPage() {
     </div>
   );
 }
-
-    
