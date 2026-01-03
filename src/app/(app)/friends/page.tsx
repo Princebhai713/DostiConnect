@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { User, FriendRequest, Chat } from "@/lib/types";
-import { collection, query, where, doc, getDocs, writeBatch, serverTimestamp, updateDoc } from "firebase/firestore";
+import { collection, query, where, doc, getDocs, writeBatch, serverTimestamp, updateDoc, arrayUnion } from "firebase/firestore";
 import { MessageCircle, Search, UserCheck, UserX, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -26,12 +26,22 @@ export default function FriendsPage() {
 
   const friendRequestsRef = useMemoFirebase(() => {
     if (!authUser || !firestore) return null;
-    return collection(firestore, `users/${authUser.uid}/friendRequests`);
+    return query(
+      collection(firestore, 'users', authUser.uid, 'friendRequests'),
+      where('status', '==', 'pending')
+    );
   }, [firestore, authUser]);
-  const { data: allFriendRequests } = useCollection<FriendRequest>(friendRequestsRef);
-  
-  const incomingFriendRequests = allFriendRequests?.filter(req => req.receiverId === authUser?.uid && req.status === 'pending');
-  const sentFriendRequests = allFriendRequests?.filter(req => req.senderId === authUser?.uid);
+  const { data: incomingFriendRequests } = useCollection<FriendRequest>(friendRequestsRef);
+
+  const sentFriendRequestsQuery = useMemoFirebase(() => {
+    if (!authUser || !firestore) return null;
+    return query(
+        collection(firestore, 'users', authUser.uid, 'friendRequests'),
+        where('senderId', '==', authUser.uid)
+    );
+  }, [firestore, authUser]);
+  const { data: sentFriendRequests } = useCollection<FriendRequest>(sentFriendRequestsQuery);
+
 
   const friendsQuery = useMemoFirebase(() => {
      if (!authUser || !firestore) return null;
@@ -58,12 +68,13 @@ export default function FriendsPage() {
       sentDate: serverTimestamp(),
     };
     
-    // Non-blocking way to add requests for both users
+    // Add the request to the receiver's subcollection
     const receiverRequestRef = doc(firestore, `users/${targetUser.id}/friendRequests`, requestId);
-    setDocumentNonBlocking(receiverRequestRef, friendRequestData, { merge: true });
+    setDocumentNonBlocking(receiverRequestRef, friendRequestData);
 
+    // Add a copy to the sender's subcollection to track sent requests
     const senderRequestRef = doc(firestore, `users/${authUser.uid}/friendRequests`, requestId);
-    setDocumentNonBlocking(senderRequestRef, friendRequestData, { merge: true });
+    setDocumentNonBlocking(senderRequestRef, friendRequestData);
     
     toast({
         title: "Friend Request Sent",
@@ -73,33 +84,37 @@ export default function FriendsPage() {
 
   const handleAcceptRequest = async (request: FriendRequest) => {
     if (!authUser || !firestore || !request.id) return;
-
+  
     const batch = writeBatch(firestore);
-
-    // Update the request status for both users
+  
+    // Update the request status to "accepted" in both users' subcollections
     const receiverRequestRef = doc(firestore, `users/${request.receiverId}/friendRequests`, request.id);
     batch.update(receiverRequestRef, { status: "accepted" });
     
     const senderRequestRef = doc(firestore, `users/${request.senderId}/friendRequests`, request.id);
     batch.update(senderRequestRef, { status: "accepted" });
-
-    // Add friend IDs to both users' documents
+  
+    // Add friend IDs to both users' main documents using arrayUnion
     const authUserRef = doc(firestore, 'users', authUser.uid);
+    batch.update(authUserRef, { friendIds: arrayUnion(request.senderId) });
+  
     const friendUserRef = doc(firestore, 'users', request.senderId);
-
-    const currentUserFriends = friends?.map(f => f.id) || [];
-    batch.update(authUserRef, { friendIds: [...currentUserFriends, request.senderId] });
-    
-    const senderUser = users?.find(u => u.id === request.senderId);
-    const senderFriends = senderUser?.friendIds || [];
-    batch.update(friendUserRef, { friendIds: [...senderFriends, authUser.uid] });
-
-    await batch.commit();
-
-    toast({
-        title: "Friend Request Accepted",
-        description: `You are now friends with ${getSender(request.senderId)?.username}.`,
-    });
+    batch.update(friendUserRef, { friendIds: arrayUnion(authUser.uid) });
+  
+    try {
+      await batch.commit();
+      toast({
+          title: "Friend Request Accepted",
+          description: `You are now friends with ${getSender(request.senderId)?.username}.`,
+      });
+    } catch (error) {
+      console.error("Failed to accept friend request:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not accept friend request."
+      });
+    }
   };
   
   const handleDeclineRequest = async (request: FriendRequest) => {
@@ -107,6 +122,7 @@ export default function FriendsPage() {
       
       const batch = writeBatch(firestore);
 
+      // Delete the request from both users' subcollections
       const receiverRequestRef = doc(firestore, `users/${request.receiverId}/friendRequests`, request.id);
       batch.delete(receiverRequestRef);
 
@@ -136,10 +152,11 @@ export default function FriendsPage() {
   };
 
   const getSender = (senderId: string) => users?.find(u => u.id === senderId);
+  const receivedRequests = incomingFriendRequests?.filter(req => req.receiverId === authUser?.uid);
 
   const friendIds = friends?.map(f => f.id) || [];
   const sentRequestReceiverIds = sentFriendRequests?.map(r => r.receiverId) || [];
-  const incomingRequestSenderIds = incomingFriendRequests?.map(r => r.senderId) || [];
+  const incomingRequestSenderIds = receivedRequests?.map(r => r.senderId) || [];
 
   const nonFriendUsers = users?.filter(u => 
       u.id !== authUser?.uid && 
@@ -155,13 +172,13 @@ export default function FriendsPage() {
 
   return (
     <div className="container mx-auto py-4">
-      {incomingFriendRequests && incomingFriendRequests.length > 0 && (
+      {receivedRequests && receivedRequests.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Friend Requests ({incomingFriendRequests.length})</CardTitle>
+            <CardTitle>Friend Requests ({receivedRequests.length})</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {incomingFriendRequests.map((request) => {
+            {receivedRequests.map((request) => {
               const sender = getSender(request.senderId);
               if (!sender) return null;
               return (
