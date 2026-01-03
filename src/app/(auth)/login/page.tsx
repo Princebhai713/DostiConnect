@@ -25,7 +25,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useAuth, useFirestore } from '@/firebase';
-import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -78,19 +78,14 @@ export default function LoginPage() {
           });
           return;
         }
-        // Assuming email is stored in user doc, which it isn't currently.
-        // This is a design flaw from previous steps. We need email to sign in.
-        // The user document created on registration doesn't include the email.
-        // For now, we will fail gracefully.
         const userDoc = querySnapshot.docs[0].data();
-        if (userDoc.email) {
+        if (userDoc && userDoc.email) {
             email = userDoc.email;
         } else {
-            // Let's try to find user by email as a fallback, but the user wants username login
              toast({
                 variant: 'destructive',
                 title: 'Login Failed',
-                description: 'Could not find email associated with username. Please login with email.',
+                description: 'Could not find email associated with username.',
             });
             return;
         }
@@ -98,22 +93,21 @@ export default function LoginPage() {
       } catch (error) {
         toast({
           variant: 'destructive',
-          title: 'Login Failed',
-          description: 'Error looking up user.',
+          title: 'Login Error',
+          description: 'An error occurred while looking up the user.',
         });
         return;
       }
     }
 
     try {
-      // The user wants OTP, but for now we proceed with direct login
-      initiateEmailSignIn(auth, email, values.password);
+      await signInWithEmailAndPassword(auth, email, values.password);
       router.push('/dashboard');
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: 'Invalid email or password.',
+        description: 'Invalid credentials. Please check your details and try again.',
       });
     }
   }
