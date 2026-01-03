@@ -1,96 +1,47 @@
 import Link from 'next/link';
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarFooter,
-  SidebarInset,
-  SidebarTrigger,
-} from '@/components/ui/sidebar';
 import { AppLogo } from '@/components/app-logo';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { currentUser } from '@/lib/data';
-import {
-  LayoutDashboard,
-  MessageCircle,
-  Users,
-  Settings,
-  LogOut,
-  Dot,
-} from 'lucide-react';
+import { MoreVertical, Search, Camera } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from '@/components/ui/button';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader>
-          <div className="flex items-center gap-2 p-2">
-            <AppLogo className="group-data-[collapsible=icon]:hidden" />
-            <SidebarTrigger className="group-data-[collapsible=icon]:-ml-1" />
-          </div>
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton href="/dashboard" tooltip="Dashboard" isActive>
-                <LayoutDashboard />
-                Dashboard
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton href="/chat" tooltip="Chat">
-                <MessageCircle />
-                Chat
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton href="/friends" tooltip="Friends">
-                <Users />
-                Friends
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton href="/settings" tooltip="Settings">
-                <Settings />
-                Settings
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton href="/login" tooltip="Logout">
-                <LogOut />
-                Logout
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarContent>
-        <SidebarFooter>
-          <Separator className="my-2" />
-          <div className="flex items-center gap-3 p-2">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={currentUser.avatar} alt={currentUser.name} />
-              <AvatarFallback>{currentUser.name.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col group-data-[collapsible=icon]:hidden overflow-hidden">
-              <p className="font-semibold truncate">{currentUser.name}</p>
-              <div className="flex items-center text-sm text-green-500">
-                <Dot className="-ml-1" />
-                <span>Online</span>
-              </div>
+    <div className="flex flex-col h-screen">
+      <header className="bg-primary text-primary-foreground shadow-md z-10">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <h1 className="text-xl font-bold">DostiConnect</h1>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" className="text-primary-foreground">
+                <Camera />
+              </Button>
+              <Button variant="ghost" size="icon" className="text-primary-foreground">
+                <Search />
+              </Button>
+              <Button variant="ghost" size="icon" className="text-primary-foreground">
+                <MoreVertical />
+              </Button>
             </div>
           </div>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>
-        <main className="min-h-screen p-4 sm:p-6 lg:p-8">
-          {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+          <Tabs defaultValue="chat" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 bg-primary text-primary-foreground/80 p-0">
+              <TabsTrigger value="chat" asChild className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none data-[state=active]:shadow-none">
+                <Link href="/chat">CHATS</Link>
+              </TabsTrigger>
+              <TabsTrigger value="friends" asChild className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none data-[state=active]:shadow-none">
+                <Link href="/friends">FRIENDS</Link>
+              </TabsTrigger>
+              <TabsTrigger value="settings" asChild className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none data-[state=active]:shadow-none">
+                 <Link href="/settings">SETTINGS</Link>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      </header>
+      <main className="flex-1 bg-muted/20 overflow-y-auto">
+        {children}
+      </main>
+    </div>
   );
 }
