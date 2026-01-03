@@ -78,12 +78,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </div>
-          <Button variant="ghost" className="w-full justify-start gap-2" asChild>
-            <Link href="/login">
-              <LogOut />
-              <span className="group-data-[collapsible=icon]:hidden">Logout</span>
-            </Link>
-          </Button>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton href="/login" tooltip="Logout">
+                <LogOut />
+                Logout
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>

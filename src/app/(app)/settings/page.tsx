@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { currentUser } from '@/lib/data';
-import { Camera } from 'lucide-react';
+import { Camera, LogOut } from 'lucide-react';
 
 export default function SettingsPage() {
   return (
@@ -63,7 +63,9 @@ export default function SettingsPage() {
       
       <div className="mt-8 flex justify-end">
         <Button variant="destructive" asChild>
-          <Link href="/login">Log out</Link>
+          <Link href="/login">
+            <LogOut className="mr-2 h-4 w-4" /> Log Out
+          </Link>
         </Button>
       </div>
     </div>
